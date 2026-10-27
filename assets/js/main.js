@@ -49,3 +49,125 @@ document.getElementById('cf').onsubmit=function(e) {
     e.target.reset()
 }
 ;
+
+// Accessible photo gallery preview with details and thumbnail navigation.
+(function () {
+    var galleryCards = Array.from(document.querySelectorAll('#sc .g'));
+    if (!galleryCards.length) return;
+
+    var photos = galleryCards.map(function (card) {
+        var image = card.querySelector('img');
+        var location = card.querySelector('small');
+        var title = card.querySelector('strong');
+        return {
+            src: image ? image.getAttribute('src') : '',
+            alt: image ? image.getAttribute('alt') || '' : '',
+            location: location ? location.textContent.trim() : 'Photo gallery',
+            title: title ? title.textContent.trim() : (image ? image.alt : 'Gallery photo'),
+            description: image ? (image.getAttribute('data-description') || '') : ''
+        };
+    });
+
+    var modal = document.createElement('div');
+    modal.className = 'gallery-modal';
+    modal.setAttribute('role', 'presentation');
+    modal.innerHTML = [
+        '<div class="gallery-dialog" role="dialog" aria-modal="true" aria-label="Photo preview">',
+        '  <div class="gallery-preview">',
+        '    <img class="gallery-main-image" src="" alt="">',
+        '    <button class="gallery-close" type="button" aria-label="Close photo preview">&times;</button>',
+        '    <button class="gallery-step gallery-prev" type="button" aria-label="Previous photo">&#8249;</button>',
+        '    <button class="gallery-step gallery-next" type="button" aria-label="Next photo">&#8250;</button>',
+        '  </div>',
+        '  <div class="gallery-info">',
+        '    <p class="gallery-count"></p>',
+        '    <h3 class="gallery-title"></h3>',
+        '    <p class="gallery-description"></p>',
+        '    <div class="gallery-thumbnails" aria-label="Choose a photo"></div>',
+        '  </div>',
+        '</div>'
+    ].join('');
+    document.body.appendChild(modal);
+
+    var mainImage = modal.querySelector('.gallery-main-image');
+    var count = modal.querySelector('.gallery-count');
+    var title = modal.querySelector('.gallery-title');
+    var description = modal.querySelector('.gallery-description');
+    var thumbnails = modal.querySelector('.gallery-thumbnails');
+    var closeButton = modal.querySelector('.gallery-close');
+    var previousButton = modal.querySelector('.gallery-prev');
+    var nextButton = modal.querySelector('.gallery-next');
+    var activeIndex = 0;
+    var lastFocusedElement = null;
+
+    photos.forEach(function (photo, index) {
+        var button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'gallery-thumb';
+        button.setAttribute('aria-label', 'View photo: ' + photo.title);
+        button.innerHTML = '<img src="' + photo.src.replace(/&/g, '&amp;').replace(/"/g, '&quot;') + '" alt="">';
+        button.addEventListener('click', function () { showPhoto(index); });
+        thumbnails.appendChild(button);
+    });
+    var thumbnailButtons = Array.from(thumbnails.querySelectorAll('.gallery-thumb'));
+
+    function showPhoto(index) {
+        activeIndex = (index + photos.length) % photos.length;
+        var photo = photos[activeIndex];
+        mainImage.src = photo.src;
+        mainImage.alt = photo.alt;
+        count.textContent = photo.location + '  /  ' + (activeIndex + 1) + ' of ' + photos.length;
+        title.textContent = photo.title;
+        description.textContent = photo.description || photo.alt || 'Explore this view of Pahrump and the surrounding community.';
+        thumbnailButtons.forEach(function (button, i) {
+            var selected = i === activeIndex;
+            button.classList.toggle('is-active', selected);
+            if (selected) button.setAttribute('aria-current', 'true');
+            else button.removeAttribute('aria-current');
+        });
+    }
+
+    function openModal(index, trigger) {
+        lastFocusedElement = trigger || document.activeElement;
+        showPhoto(index);
+        modal.classList.add('is-open');
+        document.body.classList.add('gallery-modal-open');
+        closeButton.focus();
+    }
+
+    function closeModal() {
+        modal.classList.remove('is-open');
+        document.body.classList.remove('gallery-modal-open');
+        if (lastFocusedElement && typeof lastFocusedElement.focus === 'function') lastFocusedElement.focus();
+    }
+
+    galleryCards.forEach(function (card, index) {
+        card.setAttribute('role', 'button');
+        card.setAttribute('tabindex', '0');
+        card.setAttribute('aria-haspopup', 'dialog');
+        card.addEventListener('click', function (event) {
+            event.preventDefault();
+            if (window.galleryWasDragged) return;
+            openModal(index, card);
+        });
+        card.addEventListener('keydown', function (event) {
+            if (event.key === 'Enter' || event.key === ' ') {
+                event.preventDefault();
+                openModal(index, card);
+            }
+        });
+    });
+
+    closeButton.addEventListener('click', closeModal);
+    previousButton.addEventListener('click', function () { showPhoto(activeIndex - 1); });
+    nextButton.addEventListener('click', function () { showPhoto(activeIndex + 1); });
+    modal.addEventListener('click', function (event) {
+        if (event.target === modal) closeModal();
+    });
+    document.addEventListener('keydown', function (event) {
+        if (!modal.classList.contains('is-open')) return;
+        if (event.key === 'Escape') closeModal();
+        if (event.key === 'ArrowLeft') showPhoto(activeIndex - 1);
+        if (event.key === 'ArrowRight') showPhoto(activeIndex + 1);
+    });
+})();
