@@ -7,10 +7,22 @@ var nav=$('nav.top')[0],
 bar=$('.bar')[0],
 bg=$('.burger')[0],
 ul=$('nav.top ul')[0];
-function tick() {
-    nav.classList.toggle('scrolled',scrollY>20);
-    bar.style.transform='scaleX('+(scrollY/(document.body.scrollHeight-innerHeight||1))+')'
+var maxS=1,wasScrolled=null,ticking=false;
+function measure() {
+    maxS=Math.max(document.documentElement.scrollHeight-innerHeight,1)
 }
+function paint() {
+    ticking=false;
+    var s=scrollY>20;
+    if(s!==wasScrolled){wasScrolled=s;nav.classList.toggle('scrolled',s)}
+    bar.style.transform='scaleX('+Math.min(scrollY/maxS,1)+')'
+}
+function tick() {
+    if(!ticking){ticking=true;requestAnimationFrame(paint)}
+}
+measure();
+addEventListener('resize',measure);
+addEventListener('load',measure);
 addEventListener('scroll',tick,{passive:true});
 tick();
 bg.onclick=function() {
@@ -39,8 +51,43 @@ addEventListener('pointerup',function(){dn=0;sc.classList.remove('drag')});
 addEventListener('pointermove',function(e){if(dn&&Math.abs(e.clientX-sx)>4){sc.classList.add('drag');sc.scrollLeft=sl-(e.clientX-sx)}});
 var io=new IntersectionObserver(function(es){es.forEach(function(e){if(e.isIntersecting){e.target.classList.add('in');io.unobserve(e.target)}})},{threshold:.12});
 $('.head,.about>*,.c,.g,.find-area,.logos img,.contact>*').forEach(function(el,i){if(!rm){el.classList.add('rv');el.style.setProperty('--d',(i%4)*.09+'s');io.observe(el)}});
-var co=new IntersectionObserver(function(es){es.forEach(function(e){if(!e.isIntersecting)return;co.unobserve(e.target);var b=e.target,n=+b.dataset.count,d=+b.dataset.dec||0,t0=performance.now();(function f(t){var p=Math.min((t-t0)/1400,1),v=n*(1-Math.pow(1-p,3));b.textContent=(b.dataset.pre||'')+v.toFixed(d)+(b.dataset.suf||'');if(p<1)requestAnimationFrame(f)})(t0)})},{threshold:.6});
-$('[data-count]').forEach(function(b){if(!rm)co.observe(b)});
+function countUp(b) {
+    if (b.dataset.countStarted === 'true') return;
+    b.dataset.countStarted = 'true';
+    var n = Number(b.dataset.count) || 0;
+    var d = Number(b.dataset.dec) || 0;
+    var prefix = b.dataset.pre || '';
+    var suffix = b.dataset.suf || '';
+
+    // Respect reduced-motion settings while still showing the correct values.
+    if (rm) {
+        b.textContent = prefix + n.toFixed(d) + suffix;
+        return;
+    }
+
+    var start = performance.now();
+    function animate(now) {
+        var progress = Math.min((now - start) / 1400, 1);
+        var value = n * (1 - Math.pow(1 - progress, 3));
+        b.textContent = prefix + value.toFixed(d) + suffix;
+        if (progress < 1) requestAnimationFrame(animate);
+    }
+    requestAnimationFrame(animate);
+}
+
+var counters = $('[data-count]');
+if ('IntersectionObserver' in window) {
+    var co = new IntersectionObserver(function(entries) {
+        entries.forEach(function(entry) {
+            if (!entry.isIntersecting) return;
+            countUp(entry.target);
+            co.unobserve(entry.target);
+        });
+    }, { threshold: 0.1, rootMargin: '0px 0px -4% 0px' });
+    counters.forEach(function(counter) { co.observe(counter); });
+} else {
+    counters.forEach(countUp);
+}
 var so=new IntersectionObserver(function(es){es.forEach(function(e){if(e.isIntersecting)$('a',ul).forEach(function(a){a.toggleAttribute('aria-current',a.getAttribute('href')==='#'+e.target.id)})})},{rootMargin:'-45% 0px -50% 0px'});
 $('section[id],header[id]').forEach(function(x){so.observe(x)});
 document.getElementById('cf').onsubmit=function(e) {
@@ -169,5 +216,85 @@ document.getElementById('cf').onsubmit=function(e) {
         if (event.key === 'Escape') closeModal();
         if (event.key === 'ArrowLeft') showPhoto(activeIndex - 1);
         if (event.key === 'ArrowRight') showPhoto(activeIndex + 1);
+    });
+})();
+
+
+// Smooth, inertia-style page scrolling (desktop mouse / trackpad only).
+// Touch devices and "reduce motion" users keep the browser's native scrolling.
+(function () {
+    if (rm || !matchMedia('(hover:hover) and (pointer:fine)').matches) return;
+
+    var root = document.documentElement;
+    var EASE = 0.085;          // lower = floatier, higher = snappier
+    var target = scrollY, current = scrollY, raf = 0, last = 0;
+
+    root.classList.add('smooth-js');
+
+    function maxScroll() { return Math.max(root.scrollHeight - innerHeight, 0); }
+    function clamp(v) { return Math.max(0, Math.min(maxScroll(), v)); }
+    function locked() { return document.body.classList.contains('gallery-modal-open'); }
+
+    function frame(now) {
+        var dt = Math.min((now - last) / 16.67, 3) || 1;   // keeps speed identical on 60/120/144 Hz screens
+        last = now;
+        current += (target - current) * (1 - Math.pow(1 - EASE, dt));
+        if (Math.abs(target - current) < 0.5) current = target;
+        scrollTo(0, current);
+        raf = current === target ? 0 : requestAnimationFrame(frame);
+    }
+
+    function go(y) {
+        if (!raf) { current = scrollY; last = performance.now(); }
+        target = clamp(y);
+        if (!raf) raf = requestAnimationFrame(frame);
+    }
+
+    addEventListener('wheel', function (e) {
+        if (e.ctrlKey || e.defaultPrevented || locked()) return;               // pinch-zoom, handled, modal open
+        if (Math.abs(e.deltaX) > Math.abs(e.deltaY) || e.shiftKey) return;     // horizontal gestures (gallery)
+        if (e.target.closest && e.target.closest('textarea, select')) return;
+        e.preventDefault();
+        var d = e.deltaMode === 1 ? e.deltaY * 34 : e.deltaMode === 2 ? e.deltaY * innerHeight : e.deltaY;
+        if (!raf) target = scrollY;
+        go(target + d);
+    }, { passive: false });
+
+    // Scrollbar drag, find-in-page, etc.: stay in sync with the real position.
+    addEventListener('scroll', function () {
+        if (Math.abs(scrollY - current) > 2) {
+            if (raf) { cancelAnimationFrame(raf); raf = 0; }
+            target = current = scrollY;
+        }
+    }, { passive: true });
+
+    // Nav / anchor links glide to their section.
+    document.addEventListener('click', function (e) {
+        if (e.defaultPrevented || e.button || e.metaKey || e.ctrlKey) return;
+        var a = e.target.closest && e.target.closest('a[href^="#"]');
+        if (!a) return;
+        var id = a.getAttribute('href');
+        var el = id.length > 1 ? document.querySelector(id) : null;
+        if (!el && id !== '#') return;
+        e.preventDefault();
+        go(el && id !== '#home' ? el.getBoundingClientRect().top + scrollY - 96 : 0);
+        if (history.replaceState) history.replaceState(null, '', id);
+    });
+
+    // Keyboard scrolling glides too.
+    addEventListener('keydown', function (e) {
+        if (e.defaultPrevented || e.altKey || e.ctrlKey || e.metaKey || locked()) return;
+        var t = document.activeElement;
+        if (t && /^(INPUT|TEXTAREA|SELECT|BUTTON|A)$/.test(t.tagName) || (t && t.isContentEditable)) return;
+        var y = raf ? target : scrollY, k = e.key;
+        if (k === 'ArrowDown') y += 90;
+        else if (k === 'ArrowUp') y -= 90;
+        else if (k === 'PageDown' || (k === ' ' && !e.shiftKey)) y += innerHeight * 0.9;
+        else if (k === 'PageUp' || (k === ' ' && e.shiftKey)) y -= innerHeight * 0.9;
+        else if (k === 'Home') y = 0;
+        else if (k === 'End') y = maxScroll();
+        else return;
+        e.preventDefault();
+        go(y);
     });
 })();
