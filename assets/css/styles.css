@@ -818,7 +818,7 @@ select, input, textarea { border-color: #e0e5e9; border-radius: 6px; background-
 }
 
 
-/* Consistent section eyebrow sizing and light-blue footer for the black logo. */
+
 #about .label, #contact .label, .head .label {
   font-size: clamp(.78rem, 1vw, .9rem);
   letter-spacing: .12em;
@@ -1023,7 +1023,6 @@ h2 {
 }
 
 
-/* Homebuyer stories — styled to match the site's simple typography and blue/cream palette */
 .homebuyer-feedback {
   background: var(--cream);
   position: relative;
@@ -1255,7 +1254,7 @@ body.gallery-modal-open { overflow: hidden; }
 }
 
 
-/* Fixed preview viewport: image dimensions never resize the modal layout. */
+
 .gallery-dialog {
     width: min(100%, 1120px);
     height: min(82vh, 760px);
@@ -1301,14 +1300,14 @@ body.gallery-modal-open { overflow: hidden; }
 }
 
 
-/* ---- Smooth scrolling support ---- */
-html.smooth-js{scroll-behavior:auto!important}          /* JS handles the easing, native smooth would fight it */
+
+html.smooth-js{scroll-behavior:auto!important}       
 html{overscroll-behavior-y:none}
-.rv:not(.in){will-change:opacity,transform}               /* promote reveal items to their own layer until shown */
+.rv:not(.in){will-change:opacity,transform}               
 .hero>img,.g img,.c .im img{backface-visibility:hidden;transform:translateZ(0)}
 
 
-/* Mobile logo strip: keep all partner marks on one elegant, balanced row. */
+
 @media (max-width: 700px) {
   .logos {
     display: grid;
